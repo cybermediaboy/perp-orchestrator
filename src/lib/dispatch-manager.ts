@@ -9,7 +9,6 @@ export type Target =
   | "tw-mcp"
   | "pg-mcp"
   | "libcoder"
-  | "trajectory"
   | "bridge";
 
 export type Priority = "urgent" | "normal" | "low";

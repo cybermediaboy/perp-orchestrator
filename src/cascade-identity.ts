@@ -87,7 +87,7 @@ if (!targetArg) {
     "[cascade-identity] usage: node dist/cascade-identity.js --target <target_id> [--workspace /path]"
   );
   console.error(
-    "  valid targets: tw-mcp, pg-mcp, libcoder, trajectory, bridge"
+    "  valid targets: tw-mcp, pg-mcp, libcoder, bridge"
   );
   process.exit(1);
 }

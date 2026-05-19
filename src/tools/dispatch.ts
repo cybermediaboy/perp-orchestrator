@@ -23,16 +23,15 @@ import {
 const TARGET_DESCRIPTIONS: Record<Target, string> = {
   "tw-mcp": "TradingView MCP coder — Pine Script edits, chart operations",
   "pg-mcp": "Pine-Guard MCP coder — pine-guard rules, validation, linting",
-  libcoder: "Library coder — Pine Script lib + DSINJECT fetchers (project-3)",
-  trajectory: "Trajectory analysis — conversation history search (project-3)",
-  bridge: "Bridge coder self — health checks and echo tests",
+  libcoder: "Library coder — Pine Script lib + DSINJECT fetchers + trajectory queries (project-3)",
+  bridge: "Bridge coder self — health checks, echo tests, trajectory on-demand",
 };
 
 // ─── Tool Schemas ─────────────────────────────────────────────────────────────
 
 export const dispatchToCascadeSchema = {
   target: z
-    .enum(["tw-mcp", "pg-mcp", "libcoder", "trajectory", "bridge"])
+    .enum(["tw-mcp", "pg-mcp", "libcoder", "bridge"])
     .describe("Destination coder window"),
   message: z.string().describe("Message content in Markdown format"),
   priority: z
@@ -85,7 +84,7 @@ export const queryDispatchStatusSchema = {
 
 export const listPendingDispatchesSchema = {
   target: z
-    .enum(["tw-mcp", "pg-mcp", "libcoder", "trajectory", "bridge"])
+    .enum(["tw-mcp", "pg-mcp", "libcoder", "bridge"])
     .optional()
     .describe("Filter by target (omit for all targets)"),
   priority: z
@@ -277,7 +276,6 @@ export function listCascadeTargets(): object {
     "tw-mcp",
     "pg-mcp",
     "libcoder",
-    "trajectory",
     "bridge",
   ];
 
