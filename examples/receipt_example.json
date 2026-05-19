@@ -1,0 +1,16 @@
+{
+  "receipt_id": "660e8400-e29b-41d4-a716-446655440001",
+  "dispatch_id": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2026-05-19T09:29:15.234Z",
+  "responder": "tw-mcp",
+  "status": "complete",
+  "response_body_markdown": "✅ **Fixed compilation error**\n\n**Changes made:**\n- Added variable declaration at line 38: `ltf_ema_fast = ta.ema(close, ltf_length)`\n- Validated with pine-guard: **PASS** (no blockers)\n\n**Validation result:**\n```json\n{\n  \"ok\": true,\n  \"tier\": \"tier_1\",\n  \"violations\": []\n}\n```\n\nFile saved and ready for TradingView upload.",
+  "error": null,
+  "processing_time_ms": 15234,
+  "metadata": {
+    "files_modified": ["REOS_v5.8.2.pine"],
+    "validation_result": "ok",
+    "pine_guard_tier": "tier_1",
+    "blockers": 0
+  }
+}

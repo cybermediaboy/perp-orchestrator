@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Receipt",
+  "description": "Schema for cascade-to-orchestrator receipt/acknowledgment messages",
+  "type": "object",
+  "required": ["receipt_id", "dispatch_id", "timestamp", "responder", "status"],
+  "properties": {
+    "receipt_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this receipt"
+    },
+    "dispatch_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "References the original dispatch"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Receipt creation time in ISO8601 format (UTC)"
+    },
+    "responder": {
+      "type": "string",
+      "enum": ["tw-mcp", "libcoder", "researcher", "trajectory", "bridge"],
+      "description": "Which coder window generated this receipt"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["received", "processing", "complete", "rejected", "timeout"],
+      "description": "Current status of the dispatch"
+    },
+    "response_body_markdown": {
+      "type": "string",
+      "description": "Response content in Markdown format (for complete/rejected status)"
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Error message if status is rejected or timeout"
+    },
+    "processing_time_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Time taken to process the dispatch in milliseconds"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional response metadata",
+      "properties": {
+        "files_modified": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "validation_result": { "type": "string" }
+      }
+    }
+  }
+}

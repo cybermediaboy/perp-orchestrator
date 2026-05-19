@@ -1,0 +1,23 @@
+{
+  "dispatch_id": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2026-05-19T09:29:00.000Z",
+  "source": "orchestrator",
+  "target": "tw-mcp",
+  "priority": "urgent",
+  "envelope": {
+    "type": "command",
+    "body_markdown": "Fix compilation error in REOS_v5.8.2.pine line 42:\n\n```pine\nundefined variable `ltf_ema_fast`\n```\n\nContext: The variable is referenced but never declared. Add declaration before first use.",
+    "context": {
+      "file": "REOS_v5.8.2.pine",
+      "line": 42,
+      "severity": "error",
+      "metadata": {
+        "error_code": "E001",
+        "suggestion": "Add: ltf_ema_fast = ta.ema(close, ltf_length)"
+      }
+    }
+  },
+  "expects_ack": true,
+  "ttl_seconds": 300,
+  "reply_to": "perplexity-thread-abc123"
+}

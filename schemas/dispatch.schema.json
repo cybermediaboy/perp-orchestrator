@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dispatch Envelope",
+  "description": "Schema for orchestrator-to-cascade dispatch messages",
+  "type": "object",
+  "required": ["dispatch_id", "timestamp", "source", "target", "priority", "envelope", "expects_ack"],
+  "properties": {
+    "dispatch_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this dispatch"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation time in ISO8601 format (UTC)"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["orchestrator", "perplexity", "manual"],
+      "description": "Origin of the dispatch"
+    },
+    "target": {
+      "type": "string",
+      "enum": ["tw-mcp", "libcoder", "researcher", "trajectory", "bridge"],
+      "description": "Destination coder window"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["urgent", "normal", "low"],
+      "description": "Processing priority"
+    },
+    "supersedes": {
+      "type": "string",
+      "format": "uuid",
+      "description": "If set, cancels the referenced dispatch"
+    },
+    "envelope": {
+      "type": "object",
+      "required": ["type", "body_markdown"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["command", "query", "info"],
+          "description": "Message type: command (action), query (question), info (FYI)"
+        },
+        "body_markdown": {
+          "type": "string",
+          "description": "Main message content in Markdown format"
+        },
+        "context": {
+          "type": "object",
+          "description": "Additional metadata",
+          "properties": {
+            "file": { "type": "string" },
+            "line": { "type": "integer" },
+            "severity": { "type": "string" },
+            "metadata": { "type": "object" }
+          }
+        }
+      }
+    },
+    "expects_ack": {
+      "type": "boolean",
+      "description": "If true, sender expects a receipt"
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600,
+      "default": 300,
+      "description": "Time-to-live in seconds"
+    },
+    "reply_to": {
+      "type": "string",
+      "description": "Return address for async response (e.g., Perplexity thread ID)"
+    }
+  }
+}
