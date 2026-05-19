@@ -9,91 +9,58 @@ Perplexity can call MCP tools directly from the thread.
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| MCP server HTTP/SSE mode | ✅ Ready | `localhost:8766/sse` returns 200 |
-| Cloudflare tunnel running | ✅ Active | PID confirmed, 4 HA connections |
-| `webhook.plagfix.com` | ⚠️ Routes to `:8765` | Wrong port — webhook server, not MCP |
-| MCP SSE exposed externally | ❌ Not yet | Needs new ingress rule + DNS CNAME |
+| MCP server HTTP/SSE mode | ✅ Ready | `localhost:8766` health → 200 |
+| Bearer token auth | ✅ Active | No token → 401, wrong token → 401 |
+| Cloudflare tunnel | ✅ Running | 4 HA connections, new config loaded |
+| `mcp.plagfix.com` ingress | ✅ In `config.yml` | Routes to `localhost:8766` |
+| `mcp.plagfix.com` DNS CNAME | ⚠️ **Manual step** | Add in Cloudflare dashboard (see Step 1) |
+| External SSE reachable | ⏳ After DNS step | |
 
-**Blocker:** The existing tunnel only exposes `:8765`. MCP SSE runs on `:8766` and needs its own hostname.
+**One remaining step:** Add DNS CNAME for `mcp.plagfix.com` in Cloudflare dashboard.
 
 ---
 
-## Step 1 — Expose MCP SSE via Cloudflare Tunnel
+## Step 1 — Add DNS CNAME (one manual step in Cloudflare dashboard)
 
-### Option A: Named hostname on plagfix.com (recommended, permanent)
+Tunnel config and ingress rule are already set. Only the DNS record is missing.
 
-**1a. Add DNS CNAME in Cloudflare dashboard:**
+**In Cloudflare dashboard → plagfix.com DNS zone:**
 ```
 Type:    CNAME
-Name:    mcp          (→ mcp.plagfix.com)
+Name:    mcp
 Target:  992bd692-8e97-43a5-a2c3-c9f69a31b0ae.cfargotunnel.com
 Proxy:   ✅ Proxied (orange cloud)
+TTL:     Auto
 ```
 
-**1b. Add ingress rule to `~/.cloudflared/config.yml`:**
-```yaml
-tunnel: 992bd692-8e97-43a5-a2c3-c9f69a31b0ae
-credentials-file: /Users/eugene/.cloudflared/992bd692-8e97-43a5-a2c3-c9f69a31b0ae.json
-
-ingress:
-  - hostname: webhook.plagfix.com
-    service: http://localhost:8765
-  - hostname: mcp.plagfix.com          # ← ADD THIS
-    service: http://localhost:8766      # ← perp-orchestrator SSE
-  - service: http_status:404
-```
-
-**1c. Restart the tunnel:**
-```bash
-pkill cloudflared
-cloudflared tunnel run 992bd692-8e97-43a5-a2c3-c9f69a31b0ae
-```
-
-**1d. Verify:**
+**Verify after DNS propagates (~30s):**
 ```bash
 curl https://mcp.plagfix.com/health
 # Expected: {"status":"ok","server":"perp-orchestrator","transport":"http+sse"}
 ```
 
----
-
-### Option B: Quick tunnel (testing only, random URL, not persistent)
-
-```bash
-# Start MCP server
-node /Users/eugene/CascadeProjects/windsurf-project-4/perp-orchestrator/dist/index.js --transport http &
-
-# Open quick tunnel — note the https://*.trycloudflare.com URL printed
-cloudflared tunnel --url http://localhost:8766
+Tunnel config already has:
+```yaml
+  - hostname: mcp.plagfix.com
+    service: http://localhost:8766
 ```
-
-Use the random URL for Perplexity Space temporarily. Tunnel URL changes every restart.
 
 ---
 
-## Step 2 — Add Bearer Token Auth (recommended)
+## Step 2 — Bearer Token Auth (already implemented)
 
-The MCP server currently has no auth. Add via `.env`:
+Auth is live. The token is in `.env` as `BRIDGE_MCP_TOKEN`.
 
+To retrieve your token:
 ```bash
-# In perp-orchestrator/.env:
-MCP_API_KEY=your-secret-token-here
+grep BRIDGE_MCP_TOKEN ~/CascadeProjects/windsurf-project-4/perp-orchestrator/.env
 ```
 
-Then update `src/index.ts` to add auth middleware on the `/sse` and `/messages` routes:
+Auth behaviour:
+- `BRIDGE_MCP_TOKEN` set → `/sse` and `/messages` require `Authorization: Bearer <token>`
+- `BRIDGE_MCP_TOKEN` unset → no auth (development mode, not recommended externally)
 
-```typescript
-app.use((req, res, next) => {
-  const auth = req.headers.authorization;
-  const expected = `Bearer ${process.env.MCP_API_KEY}`;
-  if (process.env.MCP_API_KEY && auth !== expected) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  next();
-});
-```
-
-Build after change: `npm run build`
+To rotate: update `.env`, restart the MCP server.
 
 ---
 
@@ -123,8 +90,8 @@ In Perplexity Space settings → **MCP Servers** → **Add**:
 | **Name** | `perp-orchestrator` |
 | **URL** | `https://mcp.plagfix.com/sse` |
 | **Transport** | SSE |
-| **Auth type** | Bearer token (if enabled) |
-| **Token** | value of `MCP_API_KEY` |
+| **Auth type** | Bearer token |
+| **Token** | value of `BRIDGE_MCP_TOKEN` from `.env` |
 
 ---
 

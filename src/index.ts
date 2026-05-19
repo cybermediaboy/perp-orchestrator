@@ -145,6 +145,28 @@ async function main() {
     const port = parseInt(process.env.MCP_HTTP_PORT ?? "8766", 10);
     const app = express();
 
+    // Bearer token auth (opt-in via BRIDGE_MCP_TOKEN env var)
+    const MCP_TOKEN = process.env.BRIDGE_MCP_TOKEN;
+    if (MCP_TOKEN) {
+      const authMiddleware = (
+        req: express.Request,
+        res: express.Response,
+        next: express.NextFunction
+      ) => {
+        const auth = req.headers.authorization;
+        if (auth !== `Bearer ${MCP_TOKEN}`) {
+          res.status(401).json({ error: "Unauthorized", hint: "Authorization: Bearer <BRIDGE_MCP_TOKEN>" });
+          return;
+        }
+        next();
+      };
+      app.use("/sse", authMiddleware);
+      app.use("/messages", authMiddleware);
+      console.error(`[perp-orchestrator] bearer token auth enabled`);
+    } else {
+      console.error(`[perp-orchestrator] ⚠️  no BRIDGE_MCP_TOKEN set — SSE endpoint is unauthenticated`);
+    }
+
     // Store active transports for SSE
     const transports: Record<string, SSEServerTransport> = {};
 
