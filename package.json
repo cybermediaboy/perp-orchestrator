@@ -10,7 +10,8 @@
     "start:http": "node dist/index.js --transport http",
     "test": "jest",
     "test:watch": "jest --watch",
-    "start:poller": "node dist/cascade-poller.js"
+    "start:poller": "node dist/cascade-poller.js",
+    "start:identity": "node dist/cascade-identity.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

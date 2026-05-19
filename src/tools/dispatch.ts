@@ -10,6 +10,9 @@ import {
   isExpired,
   cancelSuperseded,
   pollForReceipt,
+  isTargetAlive,
+  getAllIdentities,
+  readIdentity,
   DIRS,
   Priority,
   Target,
@@ -68,6 +71,12 @@ export const dispatchToCascadeSchema = {
     .describe(
       "If >0, poll for receipt up to this many ms before returning (max 30s)"
     ),
+  force: z
+    .boolean()
+    .default(false)
+    .describe(
+      "If true, dispatch even if target has no live identity (broadcast/override)"
+    ),
 };
 
 export const queryDispatchStatusSchema = {
@@ -99,7 +108,25 @@ export async function dispatchToCascade(args: {
   ttl_seconds: number;
   supersedes?: string;
   wait_for_receipt_ms: number;
+  force: boolean;
 }): Promise<object> {
+  // Liveness check — reject if target has no live identity unless forced
+  if (!args.force && args.target !== "bridge") {
+    if (!isTargetAlive(args.target)) {
+      const identity = readIdentity(args.target);
+      const hint = identity
+        ? `last seen ${Math.round((Date.now() - new Date(identity.last_seen).getTime()) / 1000)}s ago (TTL 90s)`
+        : "no identity file — run: node dist/cascade-identity.js --target " + args.target;
+      return {
+        dispatch_id: null,
+        status: "target_not_alive",
+        target: args.target,
+        hint,
+        override: "set force=true to dispatch anyway",
+      };
+    }
+  }
+
   // Cancel superseded dispatch from inbox if still pending
   if (args.supersedes) {
     const wasCancelled = cancelSuperseded(args.supersedes);
@@ -243,14 +270,8 @@ export function listPendingDispatches(args: {
 export function listCascadeTargets(): object {
   const inboxItems = scanDir(DIRS.inbox);
   const processingItems = scanDir(DIRS.processing);
-
-  // Last receipt timestamp per target
-  const lastSeenByTarget: Record<string, number> = {};
-  for (const receipt of scanReceipts()) {
-    const ts = new Date(receipt.timestamp).getTime();
-    const prev = lastSeenByTarget[receipt.responder] ?? 0;
-    if (ts > prev) lastSeenByTarget[receipt.responder] = ts;
-  }
+  const identities = getAllIdentities();
+  const identityMap = Object.fromEntries(identities.map((i) => [i.target_id, i]));
 
   const targets: Target[] = [
     "tw-mcp",
@@ -263,28 +284,33 @@ export function listCascadeTargets(): object {
   return {
     targets: targets.map((target_id) => {
       const pending = inboxItems.filter((d) => d.target === target_id).length;
-      const processing = processingItems.filter(
-        (d) => d.target === target_id
-      ).length;
-      const lastSeenMs = lastSeenByTarget[target_id];
-      const lastSeenAge = lastSeenMs
-        ? (Date.now() - lastSeenMs) / 1000
-        : Infinity;
+      const processing = processingItems.filter((d) => d.target === target_id).length;
+      const identity = identityMap[target_id] ?? null;
+      const alive = identity
+        ? (Date.now() - new Date(identity.last_seen).getTime()) / 1000 < 90
+        : false;
 
       const status: "available" | "busy" | "offline" =
-        processing > 0
-          ? "busy"
-          : lastSeenAge < 300
-            ? "available"
-            : "offline";
+        processing > 0 ? "busy" : alive ? "available" : "offline";
 
       return {
         target_id,
         description: TARGET_DESCRIPTIONS[target_id],
         status,
+        alive,
         pending_count: pending,
         processing_count: processing,
-        last_seen: lastSeenMs ? new Date(lastSeenMs).toISOString() : null,
+        identity: identity
+          ? {
+              pid: identity.pid,
+              workspace_path: identity.workspace_path,
+              session_id: identity.cascade_session_id,
+              last_seen: identity.last_seen,
+              last_seen_age_s: Math.round(
+                (Date.now() - new Date(identity.last_seen).getTime()) / 1000
+              ),
+            }
+          : null,
       };
     }),
   };

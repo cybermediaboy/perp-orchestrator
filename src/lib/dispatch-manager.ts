@@ -61,6 +61,10 @@ const SHARED_STATE_DIR =
   process.env.SHARED_STATE_DIR ??
   path.join(os.homedir(), "CascadeProjects", "shared_state", "dispatches");
 
+export const TARGETS_DIR =
+  process.env.TARGETS_DIR ??
+  path.join(os.homedir(), "CascadeProjects", "shared_state", "targets");
+
 export const DIRS = {
   inbox: path.join(SHARED_STATE_DIR, "inbox"),
   processing: path.join(SHARED_STATE_DIR, "processing"),
@@ -71,9 +75,60 @@ export const DIRS = {
 
 export function ensureDirs(): void {
   Object.values(DIRS).forEach((d) => fs.mkdirSync(d, { recursive: true }));
+  fs.mkdirSync(TARGETS_DIR, { recursive: true });
 }
 
 ensureDirs();
+
+// ─── Identity Types & Helpers ─────────────────────────────────────────────────
+
+export interface CascadeIdentity {
+  target_id: string;
+  pid: number;
+  workspace_path: string;
+  started_at: string;
+  last_seen: string;
+  cascade_session_id: string;
+  version: string;
+}
+
+const IDENTITY_TTL_SECONDS = 90;
+
+export function readIdentity(target_id: string): CascadeIdentity | null {
+  const p = path.join(TARGETS_DIR, `${target_id}.identity.json`);
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf-8")) as CascadeIdentity;
+  } catch {
+    return null;
+  }
+}
+
+export function isTargetAlive(target_id: string): boolean {
+  const identity = readIdentity(target_id);
+  if (!identity) return false;
+  const age = (Date.now() - new Date(identity.last_seen).getTime()) / 1000;
+  return age < IDENTITY_TTL_SECONDS;
+}
+
+export function getAllIdentities(): CascadeIdentity[] {
+  try {
+    return fs
+      .readdirSync(TARGETS_DIR)
+      .filter((f) => f.endsWith(".identity.json"))
+      .map((f) => {
+        try {
+          return JSON.parse(
+            fs.readFileSync(path.join(TARGETS_DIR, f), "utf-8")
+          ) as CascadeIdentity;
+        } catch {
+          return null;
+        }
+      })
+      .filter((i): i is CascadeIdentity => i !== null);
+  } catch {
+    return [];
+  }
+}
 
 // ─── Internal Helpers ─────────────────────────────────────────────────────────
 
