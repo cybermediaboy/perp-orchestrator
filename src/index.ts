@@ -16,6 +16,16 @@ import {
   webhookHealth,
 } from "./tools/webhook.js";
 import { tunnelStatus } from "./tools/tunnel.js";
+import {
+  dispatchToCascade,
+  dispatchToCascadeSchema,
+  queryDispatchStatus,
+  queryDispatchStatusSchema,
+  listPendingDispatches,
+  listPendingDispatchesSchema,
+  listCascadeTargets,
+  listCascadeTargetsSchema,
+} from "./tools/dispatch.js";
 
 // --- Server Setup ---
 const server = new McpServer({
@@ -71,6 +81,54 @@ server.tool(
   {},
   async () => {
     const result = await webhookHealth();
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "dispatch_to_cascade",
+  "Send a dispatch to a Cascade coder window (tw-mcp, libcoder, researcher, trajectory, bridge)",
+  dispatchToCascadeSchema,
+  async (args) => {
+    const result = await dispatchToCascade(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "query_dispatch_status",
+  "Check the status of a previously sent dispatch by its dispatch_id",
+  queryDispatchStatusSchema,
+  async (args) => {
+    const result = queryDispatchStatus(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "list_pending_dispatches",
+  "List all pending or in-progress dispatches, optionally filtered by target or priority",
+  listPendingDispatchesSchema,
+  async (args) => {
+    const result = listPendingDispatches(args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "list_cascade_targets",
+  "List all addressable Cascade coder targets with status and pending dispatch counts",
+  listCascadeTargetsSchema,
+  async () => {
+    const result = listCascadeTargets();
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
