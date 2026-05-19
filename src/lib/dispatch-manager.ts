@@ -7,8 +7,8 @@ import { randomUUID } from "crypto";
 
 export type Target =
   | "tw-mcp"
+  | "pg-mcp"
   | "libcoder"
-  | "researcher"
   | "trajectory"
   | "bridge";
 
