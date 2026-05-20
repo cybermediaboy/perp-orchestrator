@@ -101,6 +101,12 @@ export const listPendingDispatchesSchema = {
 
 export const listCascadeTargetsSchema = {};
 
+export const checkMyInboxSchema = {
+  target_id: z
+    .enum(["tw-mcp", "pg-mcp", "libcoder", "bridge"])
+    .describe("Target ID to check inbox for (your own target)"),
+};
+
 // ─── Tool Implementations ─────────────────────────────────────────────────────
 
 export async function dispatchToCascade(args: {
@@ -319,5 +325,41 @@ export function listCascadeTargets(): object {
           : null,
       };
     }),
+  };
+}
+
+export function checkMyInbox(args: { target_id: Target }): object {
+  const { target_id } = args;
+  const inboxItems = scanDir(DIRS.inbox).filter((d) => d.target === target_id);
+
+  const pending = inboxItems.map((dispatch) => {
+    const age_seconds = Math.round(getDispatchAge(dispatch));
+    const message_preview = dispatch.envelope.body_markdown.substring(0, 200);
+    
+    return {
+      dispatch_id: dispatch.dispatch_id,
+      priority: dispatch.priority,
+      age_seconds,
+      requires_approval: dispatch.requires_approval ?? true,
+      message_preview,
+      type: dispatch.envelope.type,
+      timestamp: dispatch.timestamp,
+    };
+  });
+
+  const auto_executable_count = pending.filter(
+    (d) => d.requires_approval === false
+  ).length;
+
+  return {
+    target_id,
+    pending,
+    total_count: pending.length,
+    auto_executable_count,
+    hint: auto_executable_count > 0
+      ? `${auto_executable_count} dispatch(es) can auto-execute. Use query_dispatch_status(dispatch_id) to get full content.`
+      : pending.length > 0
+        ? "All pending dispatches require approval."
+        : "Inbox empty.",
   };
 }

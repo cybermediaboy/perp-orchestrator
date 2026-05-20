@@ -28,6 +28,8 @@ import {
   listPendingDispatchesSchema,
   listCascadeTargets,
   listCascadeTargetsSchema,
+  checkMyInbox,
+  checkMyInboxSchema,
 } from "./tools/dispatch.js";
 
 // --- Server Setup ---
@@ -134,6 +136,18 @@ function createServer(): McpServer {
     listCascadeTargetsSchema,
     async () => {
       const result = listCascadeTargets();
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "check_my_inbox",
+    "Check your own inbox for pending dispatches. Returns auto-executable count and previews.",
+    checkMyInboxSchema,
+    async (args) => {
+      const result = checkMyInbox(args);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
