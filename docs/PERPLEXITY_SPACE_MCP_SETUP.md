@@ -11,12 +11,15 @@ Perplexity can call MCP tools directly from the thread.
 |-----------|--------|-------|
 | MCP server HTTP/SSE mode | ✅ Ready | `localhost:8766` health → 200 |
 | Bearer token auth | ✅ Active | No token → 401, wrong token → 401 |
-| Cloudflare tunnel | ✅ Running | 4 HA connections, new config loaded |
-| `mcp.plagfix.com` ingress | ✅ In `config.yml` | Routes to `localhost:8766` |
-| `mcp.plagfix.com` DNS CNAME | ⚠️ **Manual step** | Add in Cloudflare dashboard (see Step 1) |
-| External SSE reachable | ⏳ After DNS step | |
+| Cloudflare tunnel | ✅ Running | 4 HA connections |
+| Path ingress (tunnel config) | ✅ Active | `^/(sse\|messages\|mcp-health)` → `:8766` via `webhook.plagfix.com` |
+| `mcp.psbridge.com` DNS | ✅ Vercel edge | psbridge.com purchased 2026-05-20 |
+| Vercel proxy project | ⚠️ **Deploy step** | `/tmp/mcp-psbridge/` → `vercel deploy` (see Step 1) |
+| External SSE reachable | ⏳ After deploy | |
 
-**One remaining step:** Add DNS CNAME for `mcp.plagfix.com` in Cloudflare dashboard.
+**Architecture:** `mcp.psbridge.com` (Vercel edge) → `webhook.plagfix.com/sse` (cloudflared) → `localhost:8766` (perp-orchestrator)
+
+**Note:** `mcp.plagfix.com` deprecated — Cloudflare account locked, use `mcp.psbridge.com` instead.
 
 ---
 

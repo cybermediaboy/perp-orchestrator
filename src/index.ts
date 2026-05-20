@@ -193,6 +193,10 @@ async function main() {
       res.json({ status: "ok", server: "perp-orchestrator", transport: "http+sse" });
     });
 
+    app.get("/mcp-health", (_req, res) => {
+      res.json({ status: "ok", server: "perp-orchestrator", transport: "http+sse", via: "mcp.psbridge.com" });
+    });
+
     app.listen(port, () => {
       console.error(`[perp-orchestrator] HTTP+SSE transport listening on port ${port}`);
       console.error(`[perp-orchestrator] SSE endpoint: http://localhost:${port}/sse`);
