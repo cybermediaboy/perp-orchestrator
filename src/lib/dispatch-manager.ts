@@ -196,6 +196,12 @@ export function createDispatch(
 export function writeDispatch(dispatch: Dispatch): string {
   const filepath = path.join(DIRS.inbox, dispatchFilename(dispatch));
   fs.writeFileSync(filepath, JSON.stringify(dispatch, null, 2), "utf-8");
+
+  // Also write to per-target inbox to trigger launchd QueueDirectories watcher
+  const targetInbox = path.join(SHARED_STATE_DIR, dispatch.target, "inbox");
+  fs.mkdirSync(targetInbox, { recursive: true });
+  fs.writeFileSync(path.join(targetInbox, dispatchFilename(dispatch)), JSON.stringify(dispatch, null, 2), "utf-8");
+
   return filepath;
 }
 
