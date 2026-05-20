@@ -11,14 +11,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "start:poller": "node dist/cascade-poller.js",
-    "start:identity": "node dist/cascade-identity.js",
-    "start:orchestrator": "node dist/ds-inject-orchestrator.js",
-    "start:orchestrator:dry": "node dist/ds-inject-orchestrator.js --dry-run",
-    "start:dashboard": "node dist/ds-inject-dashboard.js",
-    "ds:once": "node dist/ds-inject-orchestrator.js --once",
-    "ds:once:dry": "node dist/ds-inject-orchestrator.js --dry-run --once",
-    "test:template": "npx tsx test/ds-inject/template-v1.test.ts",
-    "test:cycle": "npx tsx test/ds-inject/inject-cycle.test.ts"
+    "start:identity": "node dist/cascade-identity.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
