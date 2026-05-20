@@ -303,6 +303,40 @@ async function main() {
       console.error(`[push] ⚠️  ${RECEIPTS_DIR} does not exist — push notifications disabled`);
     }
 
+    // --- Receipt Buffer (for hook-based receipt flow) ---
+    const receiptBuffer: Map<string, { job_id: string; trajectory_id: string; result: string; timestamp: string; read: boolean }> = new Map();
+
+    app.use(express.json());
+
+    app.post("/receipts", (req, res) => {
+      const { job_id, trajectory_id, result, timestamp } = req.body;
+      if (!job_id) {
+        res.status(400).json({ error: "job_id required" });
+        return;
+      }
+      receiptBuffer.set(job_id, { job_id, trajectory_id, result, timestamp: timestamp ?? new Date().toISOString(), read: false });
+      console.error(`[receipts] Buffered receipt for job_id=${job_id}`);
+      res.json({ status: "buffered", job_id });
+    });
+
+    app.get("/inbox", (_req, res) => {
+      const unread: Array<{ job_id: string; trajectory_id: string; result: string; timestamp: string }> = [];
+      for (const [key, entry] of receiptBuffer.entries()) {
+        if (!entry.read) {
+          unread.push({ job_id: entry.job_id, trajectory_id: entry.trajectory_id, result: entry.result, timestamp: entry.timestamp });
+          entry.read = true;
+        }
+      }
+      // Evict read entries older than 1h
+      const oneHourAgo = Date.now() - 3600_000;
+      for (const [key, entry] of receiptBuffer.entries()) {
+        if (entry.read && new Date(entry.timestamp).getTime() < oneHourAgo) {
+          receiptBuffer.delete(key);
+        }
+      }
+      res.json({ count: unread.length, receipts: unread });
+    });
+
     app.get("/health", (_req, res) => {
       res.json({ status: "ok", server: "perp-orchestrator", transport: "http+sse" });
     });
