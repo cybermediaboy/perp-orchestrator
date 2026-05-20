@@ -40,6 +40,7 @@ export interface Dispatch {
   expects_ack: boolean;
   ttl_seconds: number;
   reply_to?: string;
+  requires_approval?: boolean;
 }
 
 export interface Receipt {
@@ -170,6 +171,7 @@ export function createDispatch(
     ttl_seconds?: number;
     supersedes?: string;
     reply_to?: string;
+    requires_approval?: boolean;
   } = {}
 ): Dispatch {
   return {
@@ -187,6 +189,7 @@ export function createDispatch(
     expects_ack: opts.expects_ack ?? true,
     ttl_seconds: opts.ttl_seconds ?? 300,
     reply_to: opts.reply_to,
+    requires_approval: opts.requires_approval ?? true,
   };
 }
 

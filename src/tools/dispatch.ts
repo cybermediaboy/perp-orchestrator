@@ -76,6 +76,12 @@ export const dispatchToCascadeSchema = {
     .describe(
       "If true, dispatch even if target has no live identity (broadcast/override)"
     ),
+  requires_approval: z
+    .boolean()
+    .default(true)
+    .describe(
+      "If false, target Cascade window auto-executes dispatch without user confirmation"
+    ),
 };
 
 export const queryDispatchStatusSchema = {
@@ -108,6 +114,7 @@ export async function dispatchToCascade(args: {
   supersedes?: string;
   wait_for_receipt_ms: number;
   force: boolean;
+  requires_approval: boolean;
 }): Promise<object> {
   // Liveness check — reject if target has no live identity unless forced
   if (!args.force && args.target !== "bridge") {
@@ -140,6 +147,7 @@ export async function dispatchToCascade(args: {
     expects_ack: args.expects_ack,
     ttl_seconds: args.ttl_seconds,
     supersedes: args.supersedes,
+    requires_approval: args.requires_approval,
   });
 
   writeDispatch(dispatch);

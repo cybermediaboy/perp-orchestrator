@@ -74,6 +74,11 @@
     "reply_to": {
       "type": "string",
       "description": "Return address for async response (e.g., Perplexity thread ID)"
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "default": true,
+      "description": "If false, target Cascade window auto-executes dispatch without user confirmation"
     }
   }
 }
