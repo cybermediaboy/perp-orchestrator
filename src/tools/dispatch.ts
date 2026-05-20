@@ -147,7 +147,30 @@ export async function dispatchToCascade(args: {
     }
   }
 
-  const dispatch = createDispatch(args.target, args.message, args.priority, {
+  // Auto-inject chaining footer for auto-executable dispatches
+  let messageBody = args.message;
+  if (args.requires_approval === false) {
+    const delaySeconds = 5; // Configurable delay before auto-checking inbox
+    messageBody += `
+
+---
+# ⚠️ MANDATORY AUTO-CHAINING
+
+After completing this task and writing your receipt:
+1. **Wait ${delaySeconds} seconds** for possible user input
+2. Call MCP tool: \`check_my_inbox(target_id="${args.target}")\`
+3. For each pending dispatch with \`requires_approval=false\`:
+   - \`query_dispatch_status(dispatch_id)\` → get full content
+   - Execute the task
+   - Write receipt via pickup-helper.js
+4. Repeat until \`check_my_inbox\` returns \`auto_executable_count=0\`
+5. Only THEN respond to user with completion summary
+
+This is part of definition-of-done. Skipping breaks pipeline.
+---`;
+  }
+
+  const dispatch = createDispatch(args.target, messageBody, args.priority, {
     type: args.type,
     context: args.context,
     expects_ack: args.expects_ack,
