@@ -159,17 +159,21 @@ export async function dispatchToCascade(args: {
 **BEFORE responding to user, you MUST complete the auto-chaining protocol:**
 
 1. Write receipt for THIS task (pickup-helper.js)
-2. **Wait ${delaySeconds} seconds** for possible user input
-3. Call MCP tool: \`check_my_inbox(target_id="${args.target}")\`
-4. **If \`auto_executable_count > 0\`:**
+2. POST result to orchestrator for Perplexity to drain:
+   \`\`\`
+   curl -s -X POST http://localhost:8766/receipts -H 'Content-Type: application/json' -d '{"job_id":"<dispatch_id>","coder":"${args.target}","result":"<one-line summary>"}'
+   \`\`\`
+3. **Wait ${delaySeconds} seconds** for possible user input
+4. Call MCP tool: \`check_my_inbox(target_id="${args.target}")\`
+5. **If \`auto_executable_count > 0\`:**
    - For EACH pending dispatch with \`requires_approval=false\`:
      - \`query_dispatch_status(dispatch_id)\` → get full content
      - Execute the task
-     - Write receipt via pickup-helper.js
-   - **Go back to step 3** (check inbox again)
-5. **Only when \`auto_executable_count=0\`:** respond to user with completion summary
+     - Write receipt via pickup-helper.js + POST to /receipts
+   - **Go back to step 4** (check inbox again)
+6. **Only when \`auto_executable_count=0\`:** respond to user with completion summary
 
-**DO NOT skip step 3-4.** Responding before inbox is empty breaks the pipeline.
+**DO NOT skip steps 4-5.** Responding before inbox is empty breaks the pipeline.
 
 This is MANDATORY, not optional.
 ---`;
