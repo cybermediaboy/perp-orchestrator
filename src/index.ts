@@ -5,6 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { z } from "zod";
 import express from "express";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 import {
   perplexitySearch,
@@ -172,16 +175,16 @@ async function main() {
       console.error(`[perp-orchestrator] ⚠️  no BRIDGE_MCP_TOKEN set — SSE endpoint is unauthenticated`);
     }
 
-    // Store active transports for SSE (per-connection server instances)
-    const transports: Record<string, SSEServerTransport> = {};
+    // Store active transports and servers for SSE (per-connection instances)
+    const sessions: Record<string, { transport: SSEServerTransport; server: McpServer }> = {};
 
     app.get("/sse", async (req, res) => {
       const transport = new SSEServerTransport("/messages", res);
       const server = createServer(); // New instance per connection
-      transports[transport.sessionId] = transport;
+      sessions[transport.sessionId] = { transport, server };
       
       res.on("close", () => {
-        delete transports[transport.sessionId];
+        delete sessions[transport.sessionId];
         transport.close().catch(() => {}); // Clean up transport
       });
       
@@ -190,13 +193,100 @@ async function main() {
 
     app.post("/messages", async (req, res) => {
       const sessionId = req.query.sessionId as string;
-      const transport = transports[sessionId];
-      if (transport) {
-        await transport.handlePostMessage(req, res);
+      const session = sessions[sessionId];
+      if (session) {
+        await session.transport.handlePostMessage(req, res);
       } else {
         res.status(400).json({ error: "Unknown session" });
       }
     });
+
+    // --- Push Notification System ---
+    // Watch receipts directory and push notifications to all active SSE sessions
+    const RECEIPTS_DIR = path.join(
+      os.homedir(),
+      "CascadeProjects",
+      "shared_state",
+      "receipts"
+    );
+
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const processedFiles = new Set<string>();
+
+    function pushReceiptNotification(filename: string) {
+      try {
+        const receiptPath = path.join(RECEIPTS_DIR, filename);
+        if (!fs.existsSync(receiptPath)) return;
+
+        const content = fs.readFileSync(receiptPath, "utf8");
+        const receipt = JSON.parse(content);
+
+        const summary = receipt.response_body_markdown?.substring(0, 200) || "(no response)";
+        const notification = {
+          method: "notifications/receipt",
+          params: {
+            dispatch_id: receipt.dispatch_id,
+            target: receipt.metadata?.target || "unknown",
+            status: receipt.status,
+            summary,
+            receipt_id: receipt.receipt_id,
+            timestamp: receipt.timestamp,
+          },
+        };
+
+        // Push to all active sessions
+        let pushCount = 0;
+        for (const [sessionId, session] of Object.entries(sessions)) {
+          try {
+            // Send notification via transport (MCP protocol notifications/message)
+            session.transport.send({
+              jsonrpc: "2.0",
+              method: "notifications/message",
+              params: {
+                level: "info",
+                data: notification.params,
+              },
+            });
+            pushCount++;
+          } catch (err) {
+            console.error(`[push] Failed to notify session ${sessionId}:`, err);
+          }
+        }
+
+        if (pushCount > 0) {
+          console.error(`[push] Receipt ${receipt.receipt_id} → ${pushCount} session(s)`);
+        }
+      } catch (err) {
+        console.error(`[push] Failed to process ${filename}:`, err);
+      }
+    }
+
+    if (fs.existsSync(RECEIPTS_DIR)) {
+      const watcher = fs.watch(RECEIPTS_DIR, (eventType, filename) => {
+        if (!filename || filename.startsWith(".") || filename.endsWith(".tmp")) return;
+        if (processedFiles.has(filename)) return;
+
+        // Debounce to handle rapid file system events
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          processedFiles.add(filename);
+          pushReceiptNotification(filename);
+          // Clean up old entries to prevent memory leak
+          if (processedFiles.size > 1000) {
+            const entries = Array.from(processedFiles);
+            entries.slice(0, 500).forEach((f) => processedFiles.delete(f));
+          }
+        }, 200);
+      });
+
+      process.on("SIGTERM", () => {
+        watcher.close();
+      });
+
+      console.error(`[push] Watching ${RECEIPTS_DIR} for receipt notifications`);
+    } else {
+      console.error(`[push] ⚠️  ${RECEIPTS_DIR} does not exist — push notifications disabled`);
+    }
 
     app.get("/health", (_req, res) => {
       res.json({ status: "ok", server: "perp-orchestrator", transport: "http+sse" });
