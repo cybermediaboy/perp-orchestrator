@@ -5,81 +5,76 @@ Perplexity can call MCP tools directly from the thread.
 
 ---
 
-## Current Status
+## Current Status ✅ LIVE
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| MCP server HTTP/SSE mode | ✅ Ready | `localhost:8766` health → 200 |
-| Bearer token auth | ✅ Active | No token → 401, wrong token → 401 |
-| Cloudflare tunnel | ✅ Running | 4 HA connections |
-| Path ingress (tunnel config) | ✅ Active | `^/(sse\|messages\|mcp-health)` → `:8766` via `webhook.plagfix.com` |
-| `mcp.psbridge.com` DNS | ✅ Vercel edge | psbridge.com purchased 2026-05-20 |
-| Vercel proxy project | ⚠️ **Deploy step** | `/tmp/mcp-psbridge/` → `vercel deploy` (see Step 1) |
-| External SSE reachable | ⏳ After deploy | |
+| MCP server HTTP/SSE | ✅ Running | `localhost:8766` |
+| Bearer token auth | ✅ Active | `BRIDGE_MCP_TOKEN` in `.env` |
+| Cloudflare tunnel | ✅ Running | 4 HA connections, ID `992bd692-…` |
+| Path ingress (tunnel) | ✅ Active | `^/(sse\|messages\|mcp-health)` → `:8766` |
+| Vercel proxy | ✅ Deployed | `mcp-psbridge.vercel.app` → `eugene1980/mcp-psbridge` |
+| `mcp.psbridge.com` | ⚠️ **Connect domain** | Vercel dashboard → attach to `mcp-psbridge` project |
+| SSE smoke test | ✅ Pass | `event: endpoint` received via `mcp-psbridge.vercel.app/sse` |
 
-**Architecture:** `mcp.psbridge.com` (Vercel edge) → `webhook.plagfix.com/sse` (cloudflared) → `localhost:8766` (perp-orchestrator)
+**Architecture (Option B — interim):**
+```
+Perplexity → HTTPS → mcp.psbridge.com (Vercel edge, Vercel TLS)
+           → Edge Function fetch()
+           → https://webhook.plagfix.com/sse  (interim backend transport, not user-facing)
+           → cloudflared path ingress ^/(sse|messages|mcp-health)
+           → localhost:8766 (perp-orchestrator)
+```
 
-**Note:** `mcp.plagfix.com` deprecated — Cloudflare account locked, use `mcp.psbridge.com` instead.
+**Migration path:** When Cloudflare account is recovered or a new tunnel is created for
+`psbridge.com`, replace the Edge Function upstream URL with the direct tunnel URL and 
+remove the `webhook.plagfix.com` dependency entirely.
+
+**Deprecated:** `mcp.plagfix.com` — Cloudflare account locked, no DNS record ever existed.
 
 ---
 
-## Step 1 — Add DNS CNAME (one manual step in Cloudflare dashboard)
+## Step 1 — Connect mcp.psbridge.com to Vercel project (one-time, user action)
 
-Tunnel config and ingress rule are already set. Only the DNS record is missing.
+The Vercel proxy is already deployed at `eugene1980/mcp-psbridge`.
 
-**In Cloudflare dashboard → plagfix.com DNS zone:**
+**Vercel dashboard → Domains → psbridge.com → Connected Projects → Connect:**
 ```
-Type:    CNAME
-Name:    mcp
-Target:  992bd692-8e97-43a5-a2c3-c9f69a31b0ae.cfargotunnel.com
-Proxy:   ✅ Proxied (orange cloud)
-TTL:     Auto
+Project:   mcp-psbridge
+Subdomain: mcp
 ```
-
-**Verify after DNS propagates (~30s):**
+Vercel auto-issues a TLS cert for `mcp.psbridge.com` (~60s). After that:
 ```bash
-curl https://mcp.plagfix.com/health
-# Expected: {"status":"ok","server":"perp-orchestrator","transport":"http+sse"}
-```
-
-Tunnel config already has:
-```yaml
-  - hostname: mcp.plagfix.com
-    service: http://localhost:8766
+curl https://mcp.psbridge.com/mcp-health
+# {"status":"ok","server":"perp-orchestrator","transport":"http+sse","via":"mcp.psbridge.com"}
 ```
 
 ---
 
-## Step 2 — Bearer Token Auth (already implemented)
+## Step 2 — Bearer Token Auth
 
-Auth is live. The token is in `.env` as `BRIDGE_MCP_TOKEN`.
+Token is in `.env` as `BRIDGE_MCP_TOKEN`.
 
-To retrieve your token:
 ```bash
 grep BRIDGE_MCP_TOKEN ~/CascadeProjects/windsurf-project-4/perp-orchestrator/.env
 ```
 
-Auth behaviour:
 - `BRIDGE_MCP_TOKEN` set → `/sse` and `/messages` require `Authorization: Bearer <token>`
-- `BRIDGE_MCP_TOKEN` unset → no auth (development mode, not recommended externally)
-
-To rotate: update `.env`, restart the MCP server.
+- To rotate: update `.env`, restart the MCP server.
 
 ---
 
 ## Step 3 — Start MCP Server (HTTP mode)
 
 ```bash
-cd /Users/eugene/CascadeProjects/windsurf-project-4/perp-orchestrator
-nohup node dist/index.js --transport http > /tmp/perp-orchestrator-http.log 2>&1 &
-echo $! > /tmp/perp-orchestrator-http.pid
-echo "Started PID: $(cat /tmp/perp-orchestrator-http.pid)"
-```
+nohup node /Users/eugene/CascadeProjects/windsurf-project-4/perp-orchestrator/dist/index.js \
+  --transport http > /tmp/perp-orchestrator-http.log 2>&1 & disown
 
-Verify:
-```bash
-curl https://mcp.plagfix.com/health
-# {"status":"ok","server":"perp-orchestrator","transport":"http+sse"}
+# Verify local
+curl http://localhost:8766/health
+
+# Verify via Vercel proxy (after domain attached)
+curl https://mcp.psbridge.com/mcp-health
 ```
 
 ---
@@ -91,7 +86,7 @@ In Perplexity Space settings → **MCP Servers** → **Add**:
 | Field | Value |
 |-------|-------|
 | **Name** | `perp-orchestrator` |
-| **URL** | `https://mcp.plagfix.com/sse` |
+| **URL** | `https://mcp.psbridge.com/sse` |
 | **Transport** | SSE |
 | **Auth type** | Bearer token |
 | **Token** | value of `BRIDGE_MCP_TOKEN` from `.env` |
@@ -119,19 +114,17 @@ list_cascade_targets     List all Cascade targets with liveness status
 
 ```bash
 # SSE connect — get session ID
-curl -N -H "Accept: text/event-stream" https://mcp.plagfix.com/sse &
-
-# The SSE stream emits:
-# event: endpoint
-# data: /messages?sessionId=<SESSION_ID>
+curl -N -H "Accept: text/event-stream" https://mcp.psbridge.com/sse &
+# emits: event: endpoint
+#        data: /messages?sessionId=<SESSION_ID>
 
 # Initialize
-curl -X POST "https://mcp.plagfix.com/messages?sessionId=<SESSION_ID>" \
+curl -X POST "https://mcp.psbridge.com/messages?sessionId=<SESSION_ID>" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"test","version":"1"},"protocolVersion":"2024-11-05"}}'
 
 # Call a tool
-curl -X POST "https://mcp.plagfix.com/messages?sessionId=<SESSION_ID>" \
+curl -X POST "https://mcp.psbridge.com/messages?sessionId=<SESSION_ID>" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_cascade_targets","arguments":{}}}'
 ```
@@ -142,12 +135,11 @@ curl -X POST "https://mcp.plagfix.com/messages?sessionId=<SESSION_ID>" \
 
 | Limitation | Impact | Mitigation |
 |------------|--------|-----------|
-| **SSE timeout** | Cloudflare drops idle SSE connections after ~100s | Perplexity reconnects automatically; MCP SDK handles reconnect |
-| **No QUIC keepalive for SSE** | `timeout no recent network activity` in tunnel logs | Normal — not a bug, tunnel logs this for QUIC keepalive cycles |
-| **Single session model** | `src/index.ts` stores transports in memory — server restart drops all sessions | Restart is rare; sessions reconnect on next tool call |
-| **No rate limiting** | Unbounded calls | Add `express-rate-limit` if needed post-Phase 2 |
-| **Local-only state** | Dispatch files in `~/CascadeProjects/shared_state/` — not accessible from remote machines | Acceptable for single-machine setup |
-| **HTTP only (no HTTPS on 8766)** | TLS terminated at Cloudflare | Fine — end-to-end encryption via tunnel |
+| **Vercel edge timeout (~30s)** | Long-idle SSE connections dropped | Perplexity reconnects; MCP SDK handles reconnect |
+| **Extra hop latency** | +20-50ms via Vercel edge | Acceptable for MCP tool calls |
+| **webhook.plagfix.com dependency** | Interim backend; not user-facing | Replace upstream URL in Edge Function when new tunnel available |
+| **Single session model** | Server restart drops all sessions | Restart is rare; sessions reconnect on next tool call |
+| **Local-only state** | Dispatch files not accessible remotely | Acceptable for single-machine setup |
 
 ---
 
@@ -156,15 +148,16 @@ curl -X POST "https://mcp.plagfix.com/messages?sessionId=<SESSION_ID>" \
 ```bash
 # 1. Start MCP server (HTTP mode)
 nohup node /Users/eugene/CascadeProjects/windsurf-project-4/perp-orchestrator/dist/index.js \
-  --transport http > /tmp/perp-orchestrator-http.log 2>&1 &
+  --transport http > /tmp/perp-orchestrator-http.log 2>&1 & disown
 
-# 2. Confirm tunnel is running
-pgrep -x cloudflared && echo "tunnel OK" || cloudflared tunnel run 992bd692-8e97-43a5-a2c3-c9f69a31b0ae &
+# 2. Confirm tunnel running
+pgrep -x cloudflared && echo "tunnel OK" || \
+  nohup cloudflared tunnel run 992bd692-8e97-43a5-a2c3-c9f69a31b0ae >> /tmp/cloudflared.log 2>&1 & disown
 
 # 3. Health check
-curl https://mcp.plagfix.com/health
+curl https://mcp.psbridge.com/mcp-health   # after domain attached in Vercel dashboard
 
-# 4. In Perplexity Space: connect to https://mcp.plagfix.com/sse
+# 4. In Perplexity Space: connect to https://mcp.psbridge.com/sse
 ```
 
 ---
