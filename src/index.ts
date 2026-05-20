@@ -28,112 +28,117 @@ import {
 } from "./tools/dispatch.js";
 
 // --- Server Setup ---
-const server = new McpServer({
-  name: "perp-orchestrator",
-  version: "1.0.0",
-});
+// Factory function to create a new McpServer instance with all tools registered.
+// Used for per-connection instances in SSE mode to avoid SDK "Already connected" error.
+function createServer(): McpServer {
+  const server = new McpServer({
+    name: "perp-orchestrator",
+    version: "1.0.0",
+  });
 
-// --- Tool Registration ---
+  // --- Tool Registration ---
+  server.tool(
+    "perplexity_search",
+    "Search Perplexity AI for quant finance research",
+    perplexitySearchSchema,
+    async (args) => {
+      const result = await perplexitySearch(args);
+      const citationText =
+        result.citations.length > 0
+          ? `\n\nCitations:\n${result.citations.map((c, i) => `[${i + 1}] ${c}`).join("\n")}`
+          : "";
+      return {
+        content: [{ type: "text", text: result.answer + citationText }],
+      };
+    }
+  );
 
-server.tool(
-  "perplexity_search",
-  "Search Perplexity AI for quant finance research",
-  perplexitySearchSchema,
-  async (args) => {
-    const result = await perplexitySearch(args);
-    const citationText =
-      result.citations.length > 0
-        ? `\n\nCitations:\n${result.citations.map((c, i) => `[${i + 1}] ${c}`).join("\n")}`
-        : "";
-    return {
-      content: [{ type: "text", text: result.answer + citationText }],
-    };
-  }
-);
+  server.tool(
+    "webhook_fire",
+    "Send alert to pine-guard webhook server",
+    webhookFireSchema,
+    async (args) => {
+      const result = await webhookFire(args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "webhook_fire",
-  "Send alert to pine-guard webhook server",
-  webhookFireSchema,
-  async (args) => {
-    const result = await webhookFire(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  server.tool(
+    "tunnel_status",
+    "Check if Cloudflare tunnel pine-guard-webhook is active",
+    {},
+    async () => {
+      const result = await tunnelStatus();
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "tunnel_status",
-  "Check if Cloudflare tunnel pine-guard-webhook is active",
-  {},
-  async () => {
-    const result = await tunnelStatus();
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  server.tool(
+    "webhook_health",
+    "Check if webhook server on localhost:8765 is running",
+    {},
+    async () => {
+      const result = await webhookHealth();
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "webhook_health",
-  "Check if webhook server on localhost:8765 is running",
-  {},
-  async () => {
-    const result = await webhookHealth();
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  server.tool(
+    "dispatch_to_cascade",
+    "Send a dispatch to a Cascade coder window (tw-mcp, libcoder, researcher, trajectory, bridge)",
+    dispatchToCascadeSchema,
+    async (args) => {
+      const result = await dispatchToCascade(args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "dispatch_to_cascade",
-  "Send a dispatch to a Cascade coder window (tw-mcp, libcoder, researcher, trajectory, bridge)",
-  dispatchToCascadeSchema,
-  async (args) => {
-    const result = await dispatchToCascade(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  server.tool(
+    "query_dispatch_status",
+    "Check the status of a previously sent dispatch by its dispatch_id",
+    queryDispatchStatusSchema,
+    async (args) => {
+      const result = queryDispatchStatus(args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "query_dispatch_status",
-  "Check the status of a previously sent dispatch by its dispatch_id",
-  queryDispatchStatusSchema,
-  async (args) => {
-    const result = queryDispatchStatus(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  server.tool(
+    "list_pending_dispatches",
+    "List all pending or in-progress dispatches, optionally filtered by target or priority",
+    listPendingDispatchesSchema,
+    async (args) => {
+      const result = listPendingDispatches(args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "list_pending_dispatches",
-  "List all pending or in-progress dispatches, optionally filtered by target or priority",
-  listPendingDispatchesSchema,
-  async (args) => {
-    const result = listPendingDispatches(args);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  server.tool(
+    "list_cascade_targets",
+    "List all addressable Cascade coder targets with status and pending dispatch counts",
+    listCascadeTargetsSchema,
+    async () => {
+      const result = listCascadeTargets();
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
 
-server.tool(
-  "list_cascade_targets",
-  "List all addressable Cascade coder targets with status and pending dispatch counts",
-  listCascadeTargetsSchema,
-  async () => {
-    const result = listCascadeTargets();
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  }
-);
+  return server;
+}
 
 // --- Transport Selection ---
 const transportArg = process.argv.includes("--transport")
@@ -167,15 +172,19 @@ async function main() {
       console.error(`[perp-orchestrator] ⚠️  no BRIDGE_MCP_TOKEN set — SSE endpoint is unauthenticated`);
     }
 
-    // Store active transports for SSE
+    // Store active transports for SSE (per-connection server instances)
     const transports: Record<string, SSEServerTransport> = {};
 
     app.get("/sse", async (req, res) => {
       const transport = new SSEServerTransport("/messages", res);
+      const server = createServer(); // New instance per connection
       transports[transport.sessionId] = transport;
+      
       res.on("close", () => {
         delete transports[transport.sessionId];
+        transport.close().catch(() => {}); // Clean up transport
       });
+      
       await server.connect(transport);
     });
 
@@ -204,6 +213,7 @@ async function main() {
     });
   } else {
     // Default: stdio transport for Windsurf/Claude
+    const server = createServer();
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error("[perp-orchestrator] stdio transport connected");
