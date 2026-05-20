@@ -154,19 +154,24 @@ export async function dispatchToCascade(args: {
     messageBody += `
 
 ---
-# ⚠️ MANDATORY AUTO-CHAINING
+# ⚠️ CRITICAL: DO NOT RESPOND TO USER YET
 
-After completing this task and writing your receipt:
-1. **Wait ${delaySeconds} seconds** for possible user input
-2. Call MCP tool: \`check_my_inbox(target_id="${args.target}")\`
-3. For each pending dispatch with \`requires_approval=false\`:
-   - \`query_dispatch_status(dispatch_id)\` → get full content
-   - Execute the task
-   - Write receipt via pickup-helper.js
-4. Repeat until \`check_my_inbox\` returns \`auto_executable_count=0\`
-5. Only THEN respond to user with completion summary
+**BEFORE responding to user, you MUST complete the auto-chaining protocol:**
 
-This is part of definition-of-done. Skipping breaks pipeline.
+1. Write receipt for THIS task (pickup-helper.js)
+2. **Wait ${delaySeconds} seconds** for possible user input
+3. Call MCP tool: \`check_my_inbox(target_id="${args.target}")\`
+4. **If \`auto_executable_count > 0\`:**
+   - For EACH pending dispatch with \`requires_approval=false\`:
+     - \`query_dispatch_status(dispatch_id)\` → get full content
+     - Execute the task
+     - Write receipt via pickup-helper.js
+   - **Go back to step 3** (check inbox again)
+5. **Only when \`auto_executable_count=0\`:** respond to user with completion summary
+
+**DO NOT skip step 3-4.** Responding before inbox is empty breaks the pipeline.
+
+This is MANDATORY, not optional.
 ---`;
   }
 

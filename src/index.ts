@@ -221,6 +221,7 @@ async function main() {
       os.homedir(),
       "CascadeProjects",
       "shared_state",
+      "dispatches",
       "receipts"
     );
 
