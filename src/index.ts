@@ -311,11 +311,33 @@ async function main() {
       res.json({ status: "ok", server: "perp-orchestrator", transport: "http+sse", via: "mcp.psbridge.com" });
     });
 
-    app.listen(port, () => {
+    // Kill any existing process on this port before starting
+    const { execSync } = await import("child_process");
+    try {
+      const pids = execSync(`lsof -ti :${port}`, { encoding: "utf8" }).trim();
+      if (pids) {
+        console.error(`[perp-orchestrator] Killing existing process(es) on port ${port}: ${pids.replace(/\n/g, ", ")}`);
+        execSync(`lsof -ti :${port} | xargs kill -9`);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    } catch {
+      // No process on port — good
+    }
+
+    const httpServer = app.listen(port, () => {
       console.error(`[perp-orchestrator] HTTP+SSE transport listening on port ${port}`);
       console.error(`[perp-orchestrator] SSE endpoint: http://localhost:${port}/sse`);
       console.error(`[perp-orchestrator] Health: http://localhost:${port}/health`);
     });
+
+    // Graceful shutdown
+    const shutdown = () => {
+      console.error("[perp-orchestrator] Shutting down...");
+      httpServer.close();
+      process.exit(0);
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
   } else {
     // Default: stdio transport for Windsurf/Claude
     const server = createServer();
@@ -328,4 +350,8 @@ async function main() {
 main().catch((err) => {
   console.error("[perp-orchestrator] Fatal error:", err);
   process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[perp-orchestrator] Uncaught exception:", err.message);
 });
