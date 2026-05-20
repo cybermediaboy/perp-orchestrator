@@ -11,13 +11,20 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "start:poller": "node dist/cascade-poller.js",
-    "start:identity": "node dist/cascade-identity.js"
+    "start:identity": "node dist/cascade-identity.js",
+    "start:orchestrator": "node dist/ds-inject-orchestrator.js",
+    "start:orchestrator:dry": "node dist/ds-inject-orchestrator.js --dry-run",
+    "start:dashboard": "node dist/ds-inject-dashboard.js",
+    "ds:once": "node dist/ds-inject-orchestrator.js --once",
+    "ds:once:dry": "node dist/ds-inject-orchestrator.js --dry-run --once",
+    "test:template": "npx tsx test/ds-inject/template-v1.test.ts",
+    "test:cycle": "npx tsx test/ds-inject/inject-cycle.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "uuid": "^9.0.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "uuid": "^9.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -28,12 +35,19 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.22.3",
     "typescript": "^5.4.0"
   },
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.ts"],
-    "moduleFileExtensions": ["ts", "js", "json"]
+    "testMatch": [
+      "**/tests/**/*.test.ts"
+    ],
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json"
+    ]
   }
 }
