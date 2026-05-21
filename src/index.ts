@@ -8,6 +8,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import crypto from "crypto";
 
 import {
   perplexitySearch,
@@ -169,21 +170,26 @@ async function main() {
 
     // Bearer token auth (opt-in via BRIDGE_MCP_TOKEN env var)
     const MCP_TOKEN = process.env.BRIDGE_MCP_TOKEN;
-    if (MCP_TOKEN) {
-      const authMiddleware = (
-        req: express.Request,
-        res: express.Response,
-        next: express.NextFunction
-      ) => {
-        const auth = req.headers.authorization;
-        if (auth !== `Bearer ${MCP_TOKEN}`) {
-          res.status(401).json({ error: "Unauthorized", hint: "Authorization: Bearer <BRIDGE_MCP_TOKEN>" });
-          return;
-        }
+    const authenticateRequest = (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (!MCP_TOKEN) {
         next();
-      };
-      app.use("/sse", authMiddleware);
-      app.use("/messages", authMiddleware);
+        return;
+      }
+      const auth = req.headers.authorization;
+      if (auth !== `Bearer ${MCP_TOKEN}`) {
+        res.status(401).json({ error: "Unauthorized", hint: "Authorization: Bearer <BRIDGE_MCP_TOKEN>" });
+        return;
+      }
+      next();
+    };
+
+    if (MCP_TOKEN) {
+      app.use("/sse", authenticateRequest);
+      app.use("/messages", authenticateRequest);
       console.error(`[perp-orchestrator] bearer token auth enabled`);
     } else {
       console.error(`[perp-orchestrator] ⚠️  no BRIDGE_MCP_TOKEN set — SSE endpoint is unauthenticated`);
@@ -335,6 +341,37 @@ async function main() {
         }
       }
       res.json({ count: unread.length, receipts: unread });
+    });
+
+    // --- HTTP Dispatch Endpoint ---
+    const DISPATCHES_ROOT = path.join(os.homedir(), "CascadeProjects", "shared_state", "dispatches");
+    app.post("/dispatch/:target", authenticateRequest, (req, res) => {
+      const target = req.params.target as string;
+      const validTargets = ["bridge", "tw-mcp", "pg-mcp", "libcoder"];
+      if (!validTargets.includes(target)) {
+        res.status(400).json({ error: "Invalid target" });
+        return;
+      }
+      const dispatchId = crypto.randomUUID();
+      const dispatch = {
+        dispatch_id: dispatchId,
+        target,
+        timestamp: new Date().toISOString(),
+        source: "http-api",
+        priority: req.body.priority || "normal",
+        envelope: {
+          type: req.body.type || "command",
+          body_markdown: req.body.message || "",
+          context: req.body.context || {},
+        },
+        expects_ack: req.body.expects_ack ?? true,
+        ttl_seconds: req.body.ttl_seconds || 300,
+        requires_approval: req.body.requires_approval ?? true,
+      };
+      const inboxPath = path.join(DISPATCHES_ROOT, target, "inbox", `dispatch_${dispatch.timestamp.replace(/:/g, "-")}_${dispatchId}.json`);
+      fs.mkdirSync(path.dirname(inboxPath), { recursive: true });
+      fs.writeFileSync(inboxPath, JSON.stringify(dispatch, null, 2));
+      res.json({ status: "queued", dispatch_id: dispatchId, target });
     });
 
     app.get("/health", (_req, res) => {
